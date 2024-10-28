@@ -14,6 +14,7 @@ library(tmap) # map making
 library(spData) # spatial data
 library(spDataLarge) # spatial data
 library(viridisLite)
+library(units)
 ```
 
 ```{r}
@@ -102,5 +103,56 @@ elevation_mask_poly <- terra::as.polygons(elevation_mask) %>%
 tm_shape(elevation_mask_poly) +
   tm_polygons() +
   tm_layout(legend.outside = TRUE)
+```
+
+```{r}
+data("zion_points", package = "spDataLarge")
+
+crs(zion_points) == crs(elevation)
+
+zion_points <- st_transform(zion_points, crs = st_crs(elevation))
+
+tm_shape(elevation) +
+  tm_raster() +
+tm_shape(boundary) +
+  tm_borders () +
+tm_shape(zion_points) +
+  tm_symbols() +
+  tm_layout(legend.outside = TRUE)
+
+pts_elevation <- terra::extract(elevation, zion_points)
+  
+zion_points <- cbind(zion_points, pts_elevation)
+```
+
+```{r}
+zion_transect <- cbind(c(-133.2, -112.9),
+                       c(37.45, 37.2)) %>%
+  st_linestring() %>%
+  st_sfc(crs = crs(elevation)) %>%
+  st_sf(geometry = .)
+
+tm_shape(elevation) +
+  tm_raster() +
+tm_shape(zion_transect) +
+  tm_symbols()
+
+zion_transect$id = 1:nrow(zion_transect)
+zion_transect <- st_segmentize(zion_transect, dfMaxLength = 250)
+zion_transect <- st_cast(zion_transect, "POINT")
+
+zion_transect <- zion_transect %>%
+  group_by(id) %>%
+  mutate(dist = st_distance(geometry)[,1])
+
+transect <- terra::extract(elevation, zion_transect)
+zion_transect <- cbind(zion_transect, transect)
+
+zion_transect <- zion_transect %>%
+  filter(!is.na(elevation))
+
+ggplot(zion_transect, aes(x = ID, y = elevation)) +
+  geom_point()
+                          
 ```
 
