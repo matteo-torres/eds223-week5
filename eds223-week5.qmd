@@ -1,0 +1,106 @@
+---
+title: "EDS 223: Week 5"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# Load Packages
+library(sf) # vector handling
+library(terra) # raster handling
+library(tidyverse)
+library(tmap) # map making
+library(spData) # spatial data
+library(spDataLarge) # spatial data
+library(viridisLite)
+```
+
+```{r}
+# Read in data
+# load raster dataset
+elevation <- rast(system.file("raster/srtm.tif", package = "spDataLarge"))
+
+# load vector dataset
+boundary <- read_sf(system.file("vector/zion.gpkg", package = "spDataLarge"))
+```
+
+```{r}
+# Check if coordinate reference systems match
+if(crs(elevation) == crs(boundary)) {
+  print("Coordinate reference systems match!")
+} else {
+  warning("Updating coordinate reference systems to match")
+  boundary <- st_transform(boundary, st_crs(elevation))
+}
+
+# Verify
+crs(elevation) == crs(boundary)
+```
+
+```{r}
+# map
+tm_shape(elevation) +
+  tm_raster(title = "Elevation (m)") +
+tm_shape(boundary) +
+  tm_borders(lwd = 2) +
+  tm_layout(legend.outside = TRUE)
+```
+
+```{r}
+# crop raster to the extent of the vector object
+elevation_cropped <- terra::crop(elevation, boundary)
+
+# removes outside grid cells 
+tm_shape(elevation_cropped) +
+  tm_raster(title = "Elevation (m)") +
+tm_shape(boundary) +
+  tm_borders(lwd = 2) +
+  tm_layout(legend.outside = TRUE)
+```
+
+```{r}
+# mask the raster based on the vector object
+# convert the cells outside the park to NA
+elevation_masked <- terra::mask(elevation_cropped, boundary)
+
+tm_shape(elevation_masked) +
+  tm_raster(title = "Elevation (m)") +
+tm_shape(boundary) +
+  tm_borders(lwd = 2) +
+  tm_layout(legend.outside = TRUE)
+```
+
+```{r}
+# inverse mask
+elevation_inverse_mask <- terra::mask(elevation_cropped, boundary, inverse = TRUE)
+
+tm_shape(elevation_inverse_mask) +
+  tm_raster(title = "Elevation (m)") +
+tm_shape(boundary) +
+  tm_borders(lwd = 2) +
+  tm_layout(legend.outside = TRUE)
+```
+
+```{r}
+# masking to cells inside of park
+elevation_inside <- terra::mask(elevation_cropped, boundary)
+
+# masking based on value of cells
+elevation_mask <- elevation_inside
+
+elevation_mask[elevation_mask < 2000] <- NA
+
+tm_shape(elevation_mask) +
+  tm_raster(title = "Elevation (m)") +
+  tm_layout(legend.outside = TRUE)
+
+# vectorized raster
+elevation_mask_poly <- terra::as.polygons(elevation_mask) %>%
+  st_as_sf()
+
+tm_shape(elevation_mask_poly) +
+  tm_polygons() +
+  tm_layout(legend.outside = TRUE)
+```
+
